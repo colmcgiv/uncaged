@@ -120,3 +120,28 @@ builds on, including [Tokio](https://github.com/tokio-rs/tokio),
 [Hyper](https://github.com/hyperium/hyper),
 [font-kit](https://github.com/servo/font-kit), and
 [Smol](https://github.com/smol-rs/smol).
+
+## 💚 Sponsors & Supporters
+
+Uncaged is free and open source. The AI tokens, hosting and tooling behind it come out of my own pocket — sponsoring covers those costs and moves your issues and feature requests up the queue.
+
+**[Become a sponsor →](https://github.com/sponsors/antonarnaudov)**
+
+### 🏢 Company sponsors
+
+<!-- $100/mo and $250 one-time sponsors: company logo + link -->
+
+_Your company's logo could be here._
+
+### ⭐ Sponsors
+
+<!-- $50+ sponsors: avatar + link -->
+
+_Be the first._
+
+### 📜 Supporters
+
+<!-- $10+ sponsors: name -->
+
+_Be the first._
+
