@@ -1,0 +1,86 @@
+name: Validate macOS menu branding fix
+
+on:
+  push:
+    branches: [feature/issue-35-macos-menu-branding]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-35-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 2
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  macos:
+    name: Menu formatting and macOS build
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v4
+
+      - name: Fetch public upstream model assets
+        # Download the original public assets from their owner rather than
+        # duplicating LFS storage in this fork.
+        run: |
+          git lfs install --local
+          git remote add upstream https://github.com/getuncaged/uncaged.git
+          git lfs pull upstream --include='crates/input_classifier/models/**' --exclude='*.pdb'
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '25.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup component add rustfmt clippy
+
+      - name: Install Metal compiler
+        run: |
+          # Xcode 16 bundles Metal; Xcode 26+ offers it as an optional download.
+          xcodebuild -version
+          if ! xcrun --find metal >/dev/null 2>&1; then
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcrun --find metal
+          xcrun --find metallib
+
+      - name: Check formatting of changed Rust files
+        env:
+          RUSTC_BOOTSTRAP: 1
+        run: |
+          rustfmt --edition 2021 --check \
+            --config imports_granularity=Module --config group_imports=StdExternalCrate \
+            crates/warpui/src/platform/mac/menus.rs
+
+      - name: Build macOS GUI binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p validation
+          cargo build --locked -p warp --bin warp-oss 2>&1 | tee validation/build.log
+          # Preserve executable permissions in the downloadable artifact. This is a
+          # development binary, not an installed or notarized application bundle.
+          tar -czf validation/warp-oss-macos-arm64.tar.gz -C target/debug warp-oss
+          git rev-parse HEAD > validation/revision.txt
+
+      - name: Upload build and validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-35-macos-validation
+          path: validation/
+          if-no-files-found: ignore
+          retention-days: 1
