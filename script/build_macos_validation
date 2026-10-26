@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Build a runnable validation app and verify it starts without checkout resources.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+validation_dir="$PWD/validation"
+mkdir -p "$validation_dir"
+export GIT_RELEASE_TAG="validation-$(git rev-parse --short HEAD)"
+./script/bundle --debug --channel oss --selfsign --arch aarch64 \
+  --release-tag "$GIT_RELEASE_TAG"
+
+bundle_app="$PWD/target/debug/bundle/osx/Uncaged.app"
+codesign --verify --deep --strict "$bundle_app"
+
+smoke_dir=$(mktemp -d "${TMPDIR:-/tmp}/uncaged-validation.XXXXXX")
+app_pid=
+cleanup() {
+  if [[ -n "$app_pid" ]]; then
+    kill "$app_pid" 2>/dev/null || true
+    wait "$app_pid" 2>/dev/null || true
+  fi
+  if [[ -d "$smoke_dir/checkout-assets" ]]; then
+    mv "$smoke_dir/checkout-assets" app/assets
+  fi
+  if [[ -d "$smoke_dir/checkout-resources" ]]; then
+    mv "$smoke_dir/checkout-resources" resources
+  fi
+  rm -rf "$smoke_dir"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# A normal debug executable can read assets from the build machine. Moving those
+# directories catches artifacts that compile successfully but fail after download.
+ditto "$bundle_app" "$smoke_dir/Uncaged.app"
+mv app/assets "$smoke_dir/checkout-assets"
+mv resources "$smoke_dir/checkout-resources"
+(
+  cd "$smoke_dir"
+  exec ./Uncaged.app/Contents/MacOS/warp-oss
+) > "$validation_dir/launch.log" 2>&1 &
+app_pid=$!
+sleep 15
+if ! kill -0 "$app_pid" 2>/dev/null; then
+  cat "$validation_dir/launch.log" >&2
+  echo "Validation app exited during the launch smoke test" >&2
+  exit 1
+fi
+
+# Preserve the signed bundle and permissions rather than publishing a bare binary.
+ditto -c -k --keepParent "$bundle_app" "$validation_dir/Uncaged-macos-arm64.zip"
+git rev-parse HEAD > "$validation_dir/revision.txt"
+(
+  cd "$(dirname "$bundle_app")"
+  shasum -a 256 Uncaged.app/Contents/MacOS/warp-oss
+) > "$validation_dir/binary-sha256.txt"
+cat > "$validation_dir/README.txt" <<README
+Extract Uncaged-macos-arm64.zip and open Uncaged.app.
+Quit other Uncaged instances first so you can identify the validation app.
+Settings > About should show $GIT_RELEASE_TAG.
+This is a self-signed development app, containing the resources needed to run
+outside the build checkout. See revision.txt for the full source revision.
+README
+echo "Signed validation app passed launch smoke test without checkout resources"

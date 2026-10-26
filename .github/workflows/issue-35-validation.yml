@@ -65,16 +65,18 @@ jobs:
             --config imports_granularity=Module --config group_imports=StdExternalCrate \
             crates/warpui/src/platform/mac/menus.rs
 
-      - name: Build macOS GUI binary
+      - name: Install app packaging tools
+        run: |
+          brew install create-dmg
+          cargo install cargo-bundle --git https://github.com/burtonageo/cargo-bundle --rev ae4c76e92c08774bf54ff077b1c52e3d1cd6c16d
+          cargo install --locked cargo-about@0.8.4
+
+      - name: Build and launch packaged macOS app
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p validation
-          cargo build --locked -p warp --bin warp-oss 2>&1 | tee validation/build.log
-          # Preserve executable permissions in the downloadable artifact. This is a
-          # development binary, not an installed or notarized application bundle.
-          tar -czf validation/warp-oss-macos-arm64.tar.gz -C target/debug warp-oss
-          git rev-parse HEAD > validation/revision.txt
+          ./script/build_macos_validation 2>&1 | tee validation/build.log
 
       - name: Upload build and validation logs
         if: always()
@@ -83,4 +85,4 @@ jobs:
           name: issue-35-macos-validation
           path: validation/
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 7
