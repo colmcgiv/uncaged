@@ -1,15 +1,15 @@
-name: Validate theme persistence fix
+name: Validate combined fixes for issues 34 and 35
 
 on:
   push:
-    branches: [ci/issue-34-validation]
+    branches: [feature/issues-34-35-integration]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: issue-34-${{ github.ref }}
+  group: issues-34-35-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -21,7 +21,7 @@ env:
 
 jobs:
   macos:
-    name: Theme regression tests and macOS build
+    name: Combined regression tests and macOS build
     runs-on: macos-15
     timeout-minutes: 90
     steps:
@@ -63,7 +63,8 @@ jobs:
         run: |
           rustfmt --edition 2021 --check \
             --config imports_granularity=Module --config group_imports=StdExternalCrate \
-            app/src/themes/theme_creator_body.rs app/src/themes/theme_creator_body_tests.rs
+            app/src/themes/theme_creator_body.rs app/src/themes/theme_creator_body_tests.rs \
+            crates/warpui/src/platform/mac/menus.rs
 
       - name: Run theme persistence regression tests
         shell: bash
@@ -86,7 +87,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: issue-34-macos-validation
+          name: issues-34-35-macos-validation
           path: validation/
           if-no-files-found: ignore
           retention-days: 1
